@@ -83,8 +83,7 @@ app.delete('/api/devotees/:id', async (req, res) => {
 });
 
 // WHATSAPP NOTIFICATION CRON JOB
-// Scheduled to run every day at 8:00 AM IST ('0 8 * * *')
-cron.schedule('0 8 * * *', async () => {
+const runDailyCheck = async () => {
   console.log('Running daily check for birthdays and anniversaries...');
   const todayStr = new Date().toISOString().split('T')[0];
   const todayMonthDay = todayStr.substring(5); // gets MM-DD
@@ -106,19 +105,34 @@ cron.schedule('0 8 * * *', async () => {
 
     if (Object.keys(temples).length === 0) {
       console.log("No events today.");
-      return;
+      return { message: "No events today." };
     }
 
     // Send WhatsApp to Temple Manager for each temple's events
     for (const [templeId, events] of Object.entries(temples)) {
       await sendWhatsAppToManager(templeId, events.birthdays, events.anniversaries);
     }
+    return { message: "WhatsApp triggers executed successfully!" };
   } catch (err) {
-    console.error("Error in cron job:", err.message);
+    console.error("Error in daily check:", err.message);
+    throw err;
   }
-}, {
+};
+
+// Scheduled to run every day at 8:00 AM IST ('0 8 * * *')
+cron.schedule('0 8 * * *', runDailyCheck, {
   scheduled: true,
   timezone: "Asia/Kolkata"
+});
+
+// Test Endpoint for manual triggering
+app.get('/api/test-whatsapp', async (req, res) => {
+  try {
+    const result = await runDailyCheck();
+    res.json(result || { message: "Executed." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 const sendWhatsAppToManager = async (templeId, birthdays, anniversaries) => {
