@@ -83,7 +83,7 @@ app.delete('/api/devotees/:id', async (req, res) => {
 });
 
 // WHATSAPP NOTIFICATION CRON JOB
-// Scheduled to run every day at 8:00 AM ('0 8 * * *')
+// Scheduled to run every day at 8:00 AM IST ('0 8 * * *')
 cron.schedule('0 8 * * *', async () => {
   console.log('Running daily check for birthdays and anniversaries...');
   const todayStr = new Date().toISOString().split('T')[0];
@@ -116,6 +116,9 @@ cron.schedule('0 8 * * *', async () => {
   } catch (err) {
     console.error("Error in cron job:", err.message);
   }
+}, {
+  scheduled: true,
+  timezone: "Asia/Kolkata"
 });
 
 const sendWhatsAppToManager = async (templeId, birthdays, anniversaries) => {
