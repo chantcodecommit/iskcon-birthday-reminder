@@ -507,9 +507,27 @@ export default function App() {
             <div className="card" style={{ maxWidth: '600px' }}>
               <div className="flex justify-between items-center mb-6">
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Application Settings</h2>
-                <button className="btn btn-danger" onClick={handleLogout}>Logout Temple</button>
               </div>
               
+              <div className="form-group mb-6">
+                <label className="form-label">Current Temple ID</label>
+                <div className="flex gap-2 items-center">
+                  <input 
+                    type="text" 
+                    className="form-control" 
+                    value={templeId}
+                    readOnly
+                    style={{ background: '#f1f5f9', color: 'var(--text-muted)' }}
+                  />
+                  <button className="btn btn-primary" style={{ whiteSpace: 'nowrap' }} onClick={handleLogout}>
+                    Change / Switch
+                  </button>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '8px' }}>
+                  This is your unique database identifier. Changing this will switch to a different temple's dashboard.
+                </p>
+              </div>
+
               <div className="form-group mb-6">
                 <label className="form-label">Temple/Organization Name</label>
                 <input 
