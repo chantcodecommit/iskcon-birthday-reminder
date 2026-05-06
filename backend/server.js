@@ -91,30 +91,40 @@ cron.schedule('0 8 * * *', async () => {
 
   try {
     const rows = await Devotee.find({});
-    let todayBirthdays = [];
-    let todayAnniversaries = [];
+    let temples = {}; // Group by templeId
 
     rows.forEach(d => {
-      if (d.dob && d.dob.endsWith(todayMonthDay)) todayBirthdays.push(d);
-      if (d.anniversary && d.anniversary.endsWith(todayMonthDay)) todayAnniversaries.push(d);
+      const isBday = d.dob && d.dob.endsWith(todayMonthDay);
+      const isAnniv = d.anniversary && d.anniversary.endsWith(todayMonthDay);
+      
+      if (isBday || isAnniv) {
+        if (!temples[d.templeId]) temples[d.templeId] = { birthdays: [], anniversaries: [] };
+        if (isBday) temples[d.templeId].birthdays.push(d);
+        if (isAnniv) temples[d.templeId].anniversaries.push(d);
+      }
     });
 
-    if (todayBirthdays.length === 0 && todayAnniversaries.length === 0) return;
+    if (Object.keys(temples).length === 0) {
+      console.log("No events today.");
+      return;
+    }
 
-    // Send WhatsApp to Temple Manager
-    await sendWhatsAppToManager(todayBirthdays, todayAnniversaries);
+    // Send WhatsApp to Temple Manager for each temple's events
+    for (const [templeId, events] of Object.entries(temples)) {
+      await sendWhatsAppToManager(templeId, events.birthdays, events.anniversaries);
+    }
   } catch (err) {
     console.error("Error in cron job:", err.message);
   }
 });
 
-const sendWhatsAppToManager = async (birthdays, anniversaries) => {
+const sendWhatsAppToManager = async (templeId, birthdays, anniversaries) => {
   // UltraMsg configuration from environment variables
   const instanceId = process.env.ULTRAMSG_INSTANCE_ID || 'YOUR_ULTRAMSG_INSTANCE_ID'; 
   const token = process.env.ULTRAMSG_TOKEN || 'YOUR_ULTRAMSG_TOKEN';
-  const managerPhone = process.env.MANAGER_WHATSAPP || 'YOUR_WHATSAPP_NUMBER'; // e.g. 919876543210
+  const managerPhone = process.env.MANAGER_WHATSAPP || ''; // e.g. 919876543210
 
-  let message = `*Hare Krishna! Daily ISKCON Reminders* 🪷\n\n`;
+  let message = `*Hare Krishna! Daily Reminders for [${templeId.toUpperCase()}]* 🪷\n\n`;
 
   if (birthdays.length > 0) {
     message += `*🎂 Birthdays Today:*\n`;
@@ -128,9 +138,13 @@ const sendWhatsAppToManager = async (birthdays, anniversaries) => {
 
   message += `\n_Please send them your wishes!_`;
 
-  console.log("Simulating sending WhatsApp to Manager:\n", message);
+  console.log("Sending WhatsApp to Manager:\n", message);
 
-  /* UNCOMMENT TO ACTUALLY SEND via UltraMsg:
+  if (!managerPhone) {
+    console.log("Skipping sending: MANAGER_WHATSAPP is not configured in Render.");
+    return;
+  }
+
   if (instanceId !== 'YOUR_ULTRAMSG_INSTANCE_ID') {
     try {
       const url = `https://api.ultramsg.com/${instanceId}/messages/chat`;
@@ -139,12 +153,13 @@ const sendWhatsAppToManager = async (birthdays, anniversaries) => {
         to: managerPhone,
         body: message
       });
-      console.log("WhatsApp message sent successfully!");
+      console.log(`WhatsApp message sent successfully for ${templeId}!`);
     } catch (error) {
-      console.error("Error sending WhatsApp:", error.message);
+      console.error(`Error sending WhatsApp for ${templeId}:`, error.message);
     }
+  } else {
+    console.log("Skipping sending: UltraMsg Instance ID is not configured.");
   }
-  */
 };
 
 const PORT = process.env.PORT || 3001;
