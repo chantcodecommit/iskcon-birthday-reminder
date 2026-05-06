@@ -227,6 +227,28 @@ export default function App() {
     localStorage.removeItem('iskcon_temple_id');
   };
 
+  const filteredDevotees = useMemo(() => {
+    return devotees.filter(d => {
+      const nameMatch = d.name ? d.name.toLowerCase().includes(search.toLowerCase()) : false;
+      const contactMatch = d.contact ? d.contact.includes(search) : false;
+      return nameMatch || contactMatch;
+    });
+  }, [devotees, search]);
+
+  const upcomingBirthdays = useMemo(() => {
+    return devotees
+      .map(d => ({ ...d, status: getUpcomingStatus(d.dob) }))
+      .filter(d => d.status)
+      .sort((a, b) => a.status.days - b.status.days);
+  }, [devotees]);
+
+  const upcomingAnniversaries = useMemo(() => {
+    return devotees
+      .map(d => ({ ...d, status: getUpcomingStatus(d.anniversary) }))
+      .filter(d => d.status)
+      .sort((a, b) => a.status.days - b.status.days);
+  }, [devotees]);
+
   if (!templeId) {
     return (
       <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
@@ -263,27 +285,7 @@ export default function App() {
     window.open(url, '_blank');
   };
 
-  const filteredDevotees = useMemo(() => {
-    return devotees.filter(d => {
-      const nameMatch = d.name ? d.name.toLowerCase().includes(search.toLowerCase()) : false;
-      const contactMatch = d.contact ? d.contact.includes(search) : false;
-      return nameMatch || contactMatch;
-    });
-  }, [devotees, search]);
 
-  const upcomingBirthdays = useMemo(() => {
-    return devotees
-      .map(d => ({ ...d, status: getUpcomingStatus(d.dob) }))
-      .filter(d => d.status)
-      .sort((a, b) => a.status.days - b.status.days);
-  }, [devotees]);
-
-  const upcomingAnniversaries = useMemo(() => {
-    return devotees
-      .map(d => ({ ...d, status: getUpcomingStatus(d.anniversary) }))
-      .filter(d => d.status)
-      .sort((a, b) => a.status.days - b.status.days);
-  }, [devotees]);
 
   return (
     <div className="app-container">
