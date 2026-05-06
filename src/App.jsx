@@ -146,14 +146,18 @@ export default function App() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ devotees: newDevotees, templeId })
-        }).then(() => {
+        }).then(res => {
+          if (!res.ok) throw new Error("Backend error");
           setDevotees(prev => {
-            const existing = new Set(prev.map(d => d.name + d.contact));
-            const filteredNew = newDevotees.filter(d => !existing.has(d.name + d.contact) && (d.name || d.contact));
+            const existing = new Set(prev.map(d => (d.name || '') + (d.contact || '')));
+            const filteredNew = newDevotees.filter(d => !existing.has((d.name || '') + (d.contact || '')) && (d.name || d.contact));
             return [...prev, ...filteredNew];
           });
           alert(`Successfully imported devotees!`);
-        }).catch(err => alert("Failed to save to backend"));
+        }).catch(err => {
+          console.error(err);
+          alert("Failed to save to backend database. Please check your Render logs.");
+        });
       } catch (err) {
         console.error(err);
         alert('Error parsing Excel file: ' + err.message);
@@ -187,21 +191,25 @@ export default function App() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(newDevotee)
-    }).then(() => {
+    }).then(res => {
+      if (!res.ok) throw new Error("Backend error");
       if (isEdit) {
         setDevotees(devotees.map(d => d.id === editingId ? newDevotee : d));
       } else {
         setDevotees([...devotees, newDevotee]);
       }
       setIsModalOpen(false);
-    }).catch(err => alert("Failed to save."));
+    }).catch(err => alert("Failed to save to database."));
   };
 
   const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this devotee?')) {
       fetch(`${API_URL}/devotees/${id}?templeId=${encodeURIComponent(templeId)}`, { method: 'DELETE' })
-        .then(() => setDevotees(devotees.filter(d => d.id !== id)))
-        .catch(err => alert("Failed to delete."));
+        .then(res => {
+          if (!res.ok) throw new Error("Backend error");
+          setDevotees(devotees.filter(d => d.id !== id));
+        })
+        .catch(err => alert("Failed to delete from database."));
     }
   };
 
@@ -256,10 +264,11 @@ export default function App() {
   };
 
   const filteredDevotees = useMemo(() => {
-    return devotees.filter(d => 
-      d.name.toLowerCase().includes(search.toLowerCase()) || 
-      d.contact.includes(search)
-    );
+    return devotees.filter(d => {
+      const nameMatch = d.name ? d.name.toLowerCase().includes(search.toLowerCase()) : false;
+      const contactMatch = d.contact ? d.contact.includes(search) : false;
+      return nameMatch || contactMatch;
+    });
   }, [devotees, search]);
 
   const upcomingBirthdays = useMemo(() => {
