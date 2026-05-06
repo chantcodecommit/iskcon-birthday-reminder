@@ -18,6 +18,7 @@ mongoose.connect(MONGO_URI)
 // Mongoose Schema & Model
 const devoteeSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
+  templeId: { type: String, required: true },
   name: String,
   contact: String,
   dob: String,
@@ -29,7 +30,9 @@ const Devotee = mongoose.model('Devotee', devoteeSchema);
 // API Routes
 app.get('/api/devotees', async (req, res) => {
   try {
-    const devotees = await Devotee.find({});
+    const templeId = req.query.templeId;
+    if (!templeId) return res.status(400).json({ error: "templeId is required" });
+    const devotees = await Devotee.find({ templeId });
     res.json(devotees);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -38,10 +41,11 @@ app.get('/api/devotees', async (req, res) => {
 
 app.post('/api/devotees', async (req, res) => {
   try {
-    const { id, name, contact, dob, anniversary } = req.body;
+    const { id, templeId, name, contact, dob, anniversary } = req.body;
+    if (!templeId) return res.status(400).json({ error: "templeId is required" });
     const updated = await Devotee.findOneAndUpdate(
-      { id },
-      { id, name, contact, dob, anniversary },
+      { id, templeId },
+      { id, templeId, name, contact, dob, anniversary },
       { upsert: true, new: true }
     );
     res.json(updated);
@@ -52,11 +56,12 @@ app.post('/api/devotees', async (req, res) => {
 
 app.post('/api/devotees/bulk', async (req, res) => {
   try {
-    const devotees = req.body.devotees;
+    const { devotees, templeId } = req.body;
+    if (!templeId) return res.status(400).json({ error: "templeId is required" });
     const bulkOps = devotees.map(d => ({
       updateOne: {
-        filter: { id: d.id },
-        update: { $set: { id: d.id, name: d.name, contact: d.contact, dob: d.dob, anniversary: d.anniversary } },
+        filter: { id: d.id, templeId },
+        update: { $set: { id: d.id, templeId, name: d.name, contact: d.contact, dob: d.dob, anniversary: d.anniversary } },
         upsert: true
       }
     }));
@@ -69,7 +74,8 @@ app.post('/api/devotees/bulk', async (req, res) => {
 
 app.delete('/api/devotees/:id', async (req, res) => {
   try {
-    const result = await Devotee.deleteOne({ id: req.params.id });
+    const templeId = req.query.templeId;
+    const result = await Devotee.deleteOne({ id: req.params.id, templeId });
     res.json({ deleted: result.deletedCount });
   } catch (err) {
     res.status(500).json({ error: err.message });

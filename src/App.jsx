@@ -35,6 +35,8 @@ export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
   const [devotees, setDevotees] = useState([]);
+  const [templeId, setTempleId] = useState(() => localStorage.getItem('iskcon_temple_id') || '');
+  const [loginInput, setLoginInput] = useState('');
   
   const [templeName, setTempleName] = useState(() => {
     return localStorage.getItem('iskcon_temple_name') || 'ISKCON Temple';
@@ -55,13 +57,14 @@ export default function App() {
 
   // Fetch from Backend
   useEffect(() => {
-    fetch(`${API_URL}/devotees`)
+    if (!templeId) return;
+    fetch(`${API_URL}/devotees?templeId=${encodeURIComponent(templeId)}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setDevotees(data);
       })
       .catch(err => console.error("Error fetching from backend:", err));
-  }, [API_URL]);
+  }, [API_URL, templeId]);
 
   const fileInputRef = useRef(null);
 
@@ -142,7 +145,7 @@ export default function App() {
         fetch(`${API_URL}/devotees/bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ devotees: newDevotees })
+          body: JSON.stringify({ devotees: newDevotees, templeId })
         }).then(() => {
           setDevotees(prev => {
             const existing = new Set(prev.map(d => d.name + d.contact));
@@ -178,7 +181,7 @@ export default function App() {
   const handleSave = (e) => {
     e.preventDefault();
     const isEdit = !!editingId;
-    const newDevotee = isEdit ? { ...formData, id: editingId } : { ...formData, id: Date.now().toString() };
+    const newDevotee = isEdit ? { ...formData, id: editingId, templeId } : { ...formData, id: Date.now().toString(), templeId };
     
     fetch(`${API_URL}/devotees`, {
       method: 'POST',
@@ -196,11 +199,48 @@ export default function App() {
 
   const handleDelete = (id) => {
     if (window.confirm('Are you sure you want to delete this devotee?')) {
-      fetch(`${API_URL}/devotees/${id}`, { method: 'DELETE' })
+      fetch(`${API_URL}/devotees/${id}?templeId=${encodeURIComponent(templeId)}`, { method: 'DELETE' })
         .then(() => setDevotees(devotees.filter(d => d.id !== id)))
         .catch(err => alert("Failed to delete."));
     }
   };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (loginInput.trim()) {
+      setTempleId(loginInput.trim().toLowerCase());
+      localStorage.setItem('iskcon_temple_id', loginInput.trim().toLowerCase());
+    }
+  };
+
+  const handleLogout = () => {
+    setTempleId('');
+    setDevotees([]);
+    localStorage.removeItem('iskcon_temple_id');
+  };
+
+  if (!templeId) {
+    return (
+      <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
+        <div className="card" style={{ maxWidth: '400px', width: '100%', textAlign: 'center', padding: '40px' }}>
+          <Gift size={48} color="var(--primary)" style={{ margin: '0 auto 16px' }} />
+          <h2 className="mb-6">ISKCON Reminders</h2>
+          <p className="mb-6" style={{ color: 'var(--text-muted)' }}>Enter your unique Temple ID to access your dashboard.</p>
+          <form onSubmit={handleLogin}>
+            <input 
+              type="text" 
+              className="form-control mb-4" 
+              placeholder="e.g. iskcon-mumbai" 
+              value={loginInput}
+              onChange={e => setLoginInput(e.target.value)}
+              required
+            />
+            <button className="btn btn-primary" style={{ width: '100%' }} type="submit">Access Dashboard</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   const sendWhatsApp = (contact, type, name) => {
     // Remove non-numeric chars
@@ -456,7 +496,10 @@ export default function App() {
           {/* Settings Tab */}
           {activeTab === 'settings' && (
             <div className="card" style={{ maxWidth: '600px' }}>
-              <h2 className="mb-6" style={{ fontSize: '1.25rem', fontWeight: 600 }}>Application Settings</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Application Settings</h2>
+                <button className="btn btn-danger" onClick={handleLogout}>Logout Temple</button>
+              </div>
               
               <div className="form-group mb-6">
                 <label className="form-label">Temple/Organization Name</label>

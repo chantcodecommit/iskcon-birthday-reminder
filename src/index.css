@@ -451,3 +451,58 @@ tr:hover td {
 .mb-4 { margin-bottom: 16px; }
 .mb-6 { margin-bottom: 24px; }
 .mt-4 { margin-top: 16px; }
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar-logo {
+    justify-content: center;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 10px;
+  }
+  .nav-item {
+    white-space: nowrap;
+    justify-content: center;
+  }
+  .topbar {
+    flex-direction: column;
+    height: auto;
+    padding: 16px;
+    gap: 12px;
+  }
+  .topbar .flex {
+    flex-direction: column;
+    width: 100%;
+  }
+  .topbar .btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .content-area {
+    padding: 16px;
+  }
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .card {
+    flex: 1 1 100% !important;
+  }
+  td {
+    padding: 12px 8px;
+    font-size: 0.85rem;
+  }
+  .badge {
+    font-size: 0.65rem;
+  }
+}
