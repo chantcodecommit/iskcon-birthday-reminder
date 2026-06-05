@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  Users, CalendarHeart, Gift, Search, Plus, Edit2, 
-  Trash2, X, MessageCircle, Settings, LayoutDashboard, Upload
+import {
+  Users, CalendarHeart, Gift, Search, Plus, Edit2,
+  Trash2, X, MessageCircle, Settings, LayoutDashboard, Upload,
+  Loader, History
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -12,29 +13,68 @@ const formatDate = (dateStr) => {
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// Helper to check if event is upcoming (within next 30 days)
-const getUpcomingStatus = (dateStr) => {
+// Parse month (0-indexed) and day from a date string, avoiding timezone issues
+const parseMonthDay = (dateStr) => {
   if (!dateStr) return null;
+  // Handle YYYY-MM-DD format directly to avoid UTC vs local timezone mismatch
+  const isoMatch = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    return { month: parseInt(isoMatch[2], 10) - 1, day: parseInt(isoMatch[3], 10) };
+  }
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return null;
+  return { month: date.getMonth(), day: date.getDate() };
+};
+
+// Helper to check if event is upcoming
+const getUpcomingStatus = (dateStr) => {
+  const parsed = parseMonthDay(dateStr);
+  if (!parsed) return null;
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
-  const eventThisYear = new Date(today.getFullYear(), date.getMonth(), date.getDate());
+
+  const eventThisYear = new Date(today.getFullYear(), parsed.month, parsed.day);
   if (eventThisYear < today) {
     eventThisYear.setFullYear(today.getFullYear() + 1);
   }
-  
+
   const diffTime = eventThisYear - today;
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  
+
   if (diffDays === 0) return { status: 'today', days: 0 };
   return { status: 'upcoming', days: diffDays };
+};
+
+// Helper to check if event occurred recently (within last N days)
+const getPastStatus = (dateStr, daysBack = 7) => {
+  const parsed = parseMonthDay(dateStr);
+  if (!parsed) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let eventThisYear = new Date(today.getFullYear(), parsed.month, parsed.day);
+
+  // If event is today or in the future, check last year's occurrence
+  if (eventThisYear >= today) {
+    eventThisYear.setFullYear(today.getFullYear() - 1);
+  }
+
+  const diffTime = today - eventThisYear;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays > 0 && diffDays <= daysBack) {
+    return { status: 'past', days: diffDays };
+  }
+  return null;
 };
 
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
   const [devotees, setDevotees] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [templeId, setTempleId] = useState(() => localStorage.getItem('iskcon_temple_id') || '');
   const [loginInput, setLoginInput] = useState('');
   
@@ -58,12 +98,14 @@ export default function App() {
   // Fetch from Backend
   useEffect(() => {
     if (!templeId) return;
+    setLoading(true);
     fetch(`${API_URL}/devotees?templeId=${encodeURIComponent(templeId)}`)
       .then(res => res.json())
       .then(data => {
         if (Array.isArray(data)) setDevotees(data);
       })
-      .catch(err => console.error("Error fetching from backend:", err));
+      .catch(err => console.error("Error fetching from backend:", err))
+      .finally(() => setLoading(false));
   }, [API_URL, templeId]);
 
   const fileInputRef = useRef(null);
@@ -249,6 +291,20 @@ export default function App() {
       .sort((a, b) => a.status.days - b.status.days);
   }, [devotees]);
 
+  const pastBirthdays = useMemo(() => {
+    return devotees
+      .map(d => ({ ...d, pastStatus: getPastStatus(d.dob) }))
+      .filter(d => d.pastStatus)
+      .sort((a, b) => a.pastStatus.days - b.pastStatus.days);
+  }, [devotees]);
+
+  const pastAnniversaries = useMemo(() => {
+    return devotees
+      .map(d => ({ ...d, pastStatus: getPastStatus(d.anniversary) }))
+      .filter(d => d.pastStatus)
+      .sort((a, b) => a.pastStatus.days - b.pastStatus.days);
+  }, [devotees]);
+
   if (!templeId) {
     return (
       <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center', background: 'var(--bg-color)' }}>
@@ -345,6 +401,13 @@ export default function App() {
           {/* Dashboard Tab */}
           {activeTab === 'dashboard' && (
             <div>
+              {loading ? (
+                <div className="loading-state">
+                  <Loader size={40} className="spinner" />
+                  <p>Loading devotees...</p>
+                </div>
+              ) : (
+              <>
               <div className="stats-grid">
                 <div className="stat-card stat-card-primary">
                   <Users className="icon" size={100} />
@@ -436,12 +499,86 @@ export default function App() {
                   )}
                 </div>
               </div>
+
+              {/* Past / Missed Events */}
+              {(pastBirthdays.length > 0 || pastAnniversaries.length > 0) && (
+                <div className="flex gap-6" style={{ flexWrap: 'wrap' }}>
+                  {pastBirthdays.length > 0 && (
+                    <div className="card" style={{ flex: '1 1 400px' }}>
+                      <h3 className="mb-4 flex items-center gap-2" style={{ color: 'var(--danger)' }}>
+                        <History size={20} /> Recent Birthdays (Last 7 days)
+                      </h3>
+                      <div className="table-container" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        <table>
+                          <tbody>
+                            {pastBirthdays.map(d => (
+                              <tr key={d.id}>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{d.name}</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(d.dob)}</div>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <span className="badge badge-past mb-2 flex justify-center">
+                                    {d.pastStatus.days === 1 ? 'Yesterday' : `${d.pastStatus.days} days ago`}
+                                  </span>
+                                  <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--danger)' }} onClick={() => sendWhatsApp(d.contact, 'birthday', d.name)}>
+                                    <MessageCircle size={14} /> Send Belated Wish
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {pastAnniversaries.length > 0 && (
+                    <div className="card" style={{ flex: '1 1 400px' }}>
+                      <h3 className="mb-4 flex items-center gap-2" style={{ color: 'var(--danger)' }}>
+                        <History size={20} /> Recent Anniversaries (Last 7 days)
+                      </h3>
+                      <div className="table-container" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                        <table>
+                          <tbody>
+                            {pastAnniversaries.map(d => (
+                              <tr key={d.id}>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{d.name}</div>
+                                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDate(d.anniversary)}</div>
+                                </td>
+                                <td style={{ textAlign: 'right' }}>
+                                  <span className="badge badge-past mb-2 flex justify-center">
+                                    {d.pastStatus.days === 1 ? 'Yesterday' : `${d.pastStatus.days} days ago`}
+                                  </span>
+                                  <button className="btn btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem', backgroundColor: 'var(--danger)' }} onClick={() => sendWhatsApp(d.contact, 'anniversary', d.name)}>
+                                    <MessageCircle size={14} /> Send Belated Wish
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+              </>
+              )}
             </div>
           )}
 
           {/* Devotees List Tab */}
           {activeTab === 'list' && (
             <div className="card">
+              {loading ? (
+                <div className="loading-state">
+                  <Loader size={40} className="spinner" />
+                  <p>Loading devotees...</p>
+                </div>
+              ) : (
+              <>
               <div className="flex justify-between items-center mb-6">
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 600 }}>All Devotees</h2>
                 <div className="flex items-center gap-2" style={{ position: 'relative', width: '300px' }}>
@@ -500,6 +637,8 @@ export default function App() {
                     </tbody>
                   </table>
                 </div>
+              )}
+              </>
               )}
             </div>
           )}
